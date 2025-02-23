@@ -1,6 +1,7 @@
 import mongoose, { model, Schema } from "mongoose";
+import { MONGODB_STRING } from "./config";
 
-mongoose.connect("mongodb://localhost:27017/?directConnection=true")
+mongoose.connect(MONGODB_STRING);
 
 
 const UserSchema = new Schema({

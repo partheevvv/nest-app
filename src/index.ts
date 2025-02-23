@@ -1,57 +1,82 @@
-import express from "express";
-import mongoose from "mongoose";
+import express, { Request, Response } from "express";
 import jwt from "jsonwebtoken";
-import { ContentModel, UserModel } from "./db";
+import bcrypt from "bcrypt";
+import { connectDB, ContentModel, IUser, UserModel } from "./db";
 import { userMiddleware } from "./middleware";
-
-const JWT_PASSWORD = "nestapp"
+import { JWT_PASSWORD } from "./config";
 
 const app = express();
 app.use(express.json());
 
-app.post("/api/v1/signup", async(req, res) => {
+connectDB();
+
+app.post("/api/v1/signup", async (req: Request, res: Response) => {
     // zod validation and hash the password
-    const username = req.body.username;
-    const password = req.body.password;
+    const { username, password } : { username: string; password: string}= req.body;
+
+    const hashedPassword: String = await bcrypt.hash(password, 10);
 
     try {
-        await UserModel.create({
-            username: username,
-            password: password
-        })
+        const user: IUser =  await UserModel.create({
+            username,
+            password: hashedPassword,
+        });
+    
+        res.status(201).json({
+            message: "User signed up",
+            user,
+        });
+    } catch(e: any) {
+        console.error(e);
+        if(e.code === 11000) {
+            res.status(400).json({
+                message: "User already exists",
+            });
+        } else {
+            res.status(500).json({
+                message: "Internal server error",
+            });
+        }
+    }
+});
+
+app.post("/api/v1/signin", async (req: Request, res: Response): Promise<void>  => {
+    try {
+        const { username, password } : { username: string, password: string } = req.body;
+
+        const user: IUser | null = await UserModel.findOne({ username });
+        
+        if (!user) {
+            res.status(401).json({
+                message: "Invalid username or password",
+            })
+            return;
+        }
+    
+        const isPasswordValid: boolean = await bcrypt.compare(password, user.password);
+    
+        if(!isPasswordValid) {
+            res.status(500).json({
+                message: "Invalid username or password",
+            });
+            return;
+        }
+    
+        const token: string = jwt.sign( {userId: user._id }, JWT_PASSWORD , {
+            expiresIn: "1h",
+        });
     
         res.json({
-            message: "User signed up"
-        })
-    } catch(e) {
-        res.status(411).json({
-            message: "User already exists"
-        })
+            message: "User signed in",
+            token,
+        });
+    
+    } catch(e: any) {
+        res.status(401).json({
+            message: "Invalid token",
+        });
     }
-})
-
-app.post("/api/v1/signin",async (req, res) => {
-    const username = req.body.username;
-    const password = req.body.password
-
-    const existingUser = await UserModel.findOne({
-        username,
-        password
-    })
-
-    if(existingUser) {
-        const token = jwt.sign({
-            id: existingUser._id
-        }, JWT_PASSWORD)
-        res.json({
-            token
-        })
-    } else {
-        res.status(403).json({
-            message: "Incorrect credentials"
-        })
-    }
-}) 
+});
 
 app.post("/api/v1/content", userMiddleware, (req, res) => {
     const link = req.body.link;
@@ -86,4 +111,6 @@ app.get("/api/v1/nest/:shareLink",(req, res) => {
 })
 
 
-app.listen(3000);
+app.listen(3000, () => {
+    console.log("Server is running on port 3000")
+});

@@ -11,7 +11,7 @@ app.use(express.json());
 connectDB();
 
 app.post("/api/v1/signup", async (req: Request, res: Response) => {
-    // zod validation and hash the password
+
     const { username, password } : { username: string; password: string}= req.body;
 
     const hashedPassword: String = await bcrypt.hash(password, 10);

@@ -1,1 +1,1 @@
-# nest-app (a second-brain app)
+# nest(a second-brain app)
